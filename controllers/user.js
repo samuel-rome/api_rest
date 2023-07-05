@@ -1,12 +1,21 @@
 //Importar dependencias y modulo
-const User = require("../models/user");
 const bcrypt = require("bcrypt");
+const moongoosePagination = require("mongoose-pagination");
+const fs = require("fs");
+
+//importar modelos
+const User = require("../models/user");
+
+// importar servicios
+
+const jwt = require("../services/jwt");
 
 //Acciones de prueba
 
 const pruebaUser = (req, res) => {
   return res.status(200).send({
     message: "Mensaje enviado desde: controllers/user.js",
+    usuario: req.user,
   });
 };
 
@@ -72,9 +81,260 @@ const register = (req, res) => {
   });
 };
 
+const login = (req, res) => {
+  //recoger parametros body
+
+  let params = req.body;
+
+  if (!params.email || !params.password) {
+    return res.status(400).send({
+      status: "error",
+      message: "faltan datos por enviar",
+    });
+  }
+
+  //buscar en la bbdd si existe
+
+  User.findOne({ email: params.email })
+
+    //.select({ password: 0 })
+    .exec((error, user) => {
+      if (error || !user)
+        return res
+          .status(404)
+          .send({ status: "error", message: "No existe en al base de ddatos" });
+
+      // compobar su contraseña
+      const pwd = bcrypt.compareSync(params.password, user.password);
+
+      if (!pwd) {
+        return res.status(400).send({
+          status: "error",
+          message: "No te haz identificado correctamente",
+        });
+      }
+
+      // Conseguir token
+
+      const token = jwt.createToken(user);
+
+      //Eliminar password del objeto
+
+      // devolcer datos del usuario
+
+      return res.status(200).send({
+        status: "sucess",
+        message: "te has identificado correctamente",
+        user: {
+          id: user._id,
+          name: user.name,
+          nick: user.nick,
+        },
+        token,
+      });
+    });
+};
+
+const profile = (req, res) => {
+  //Recibir el parametro del id de usuario por la ulr
+
+  const id = req.params.id;
+
+  //Consulta para sacar los datos del usuario
+
+  User.findById(id)
+    .select({ password: 0, role: 0 })
+    .exec((error, userProfile) => {
+      if (error || !userProfile) {
+        return res.status(404).send({
+          status: "error",
+          message: "El usuario no existe o hay un error",
+        });
+      }
+
+      //Devolver el resultado
+      //Posteriormente: devolver la informacion de follows
+      return res.status(200).send({
+        status: "sucess",
+        user: userProfile,
+      });
+    });
+};
+
+const list = (req, res) => {
+  //controlar que pagina estamos
+  let page = 1;
+  if (req.params.page) {
+    page = req.params.page;
+  }
+  page = parseInt(page);
+
+  //consultar con moongoose paginate
+
+  let itemsPerPage = 5;
+
+  User.find()
+    .sort("_id")
+    .paginate(page, itemsPerPage, (error, users, total) => {
+      if (error || !users) {
+        return res.status(400).send({
+          status: "sucess",
+          message: "No hay usuarios disponibles",
+        });
+      }
+
+      //devolver el resultado (posteriormente info follow)
+      return res.status(200).send({
+        status: "sucess",
+        users,
+        page,
+        itemsPerPage,
+        total,
+        pages: Math.ceil(total / itemsPerPage),
+      });
+    });
+};
+
+const update = (req, res) => {
+  // Recoger info del usuario a actualizar
+
+  let userIdentity = req.user;
+  let userToUpdate = req.body;
+
+  // Eliminar campos sobrantes
+
+  delete userToUpdate.iat;
+  delete userToUpdate.exp;
+  delete userToUpdate.role;
+  delete userToUpdate.image;
+
+  //Comprobar si el usuario ya existe
+
+  User.find({
+    $or: [
+      { email: userToUpdate.email.toLowerCase() },
+      { nick: userToUpdate.nick.toLowerCase() },
+    ],
+  }).exec(async (error, users) => {
+    if (error)
+      return res
+        .status(500)
+        .json({ status: "error", message: "Error en la consulta" });
+
+    let userIsset = false;
+
+    users.forEach((user) => {
+      if (user && user._id != userIdentity.id) userIsset = true;
+    });
+
+    if (userIsset) {
+      return res.status(200).send({
+        status: "success",
+        message: "El usuario ya existe",
+      });
+    }
+
+    //cifrar la contraseña
+    if (userToUpdate.password) {
+      let pwd = await bcrypt.hash(userToUpdate.password, 10);
+      userToUpdate.password = pwd;
+    }
+
+    //Buscar y actualizar
+
+    try {
+      let userUpdated = await User.findByIdAndUpdate(
+        userIdentity.id,
+        userToUpdate,
+        { new: true }
+      );
+
+      if (!userUpdated)
+        return res.status(400).json({ status: "error", message: "Error al actualizar" });
+
+      // Devolver respuesta
+      return res.status(200).send({
+        status: "sucess",
+        message: "Metodo de actualizar usuario",
+        user: userUpdated
+      });
+    } catch (error) {
+      return res.status(500).send({
+        status: "error",
+        message: "Error al actualizar",
+      });
+    }
+  });
+}
+
+const upload = (req, res) => {
+
+  // Recoger el fichero de imagen y comprobar que existe
+
+  if (!req.file) {
+    return res.status(404).send({
+      status: "error",
+      message: "Peticion no incluye imagen"
+    });
+  }
+
+  // Conseguir el nombre del archivo
+
+  let image = req.file.originalname;
+
+  // Sacar la extension del archivo
+
+  const imageSplit = image.split("\.");
+  const extension = imageSplit[1];
+
+
+  // Comprobar extension
+
+  if (extension != "png" && extension != "jpg" && extension != "jpeg" && extension != "gif") {
+
+    // Borrar archivos subido
+    const filePath = req.file.path;
+    console.log(filePath)
+    const fileDeleted = fs.unlinkSync(filePath);
+
+    //Devolcer respuesta negativa
+    return res.status(400).send({
+      status: "error",
+      message: "Extencion del fichero invalida"
+    });
+
+  }
+
+
+
+  // Si es correcta, guardar imagen en bbdd
+  User.findByIdAndUpdate(req.user.id, { image: req.file.filename }, { new: true }, (error, userUpdated) => {
+
+    if (error || !userUpdated) {
+      return res.status(500).send({
+        status: "error",
+        message: "Error en la SUBIDA del Avatar"
+      })
+    }
+
+
+    //Devolver respuesta
+    return res.status(200).send({
+      status: "success",
+      user: userUpdated,
+      file: req.file
+    });
+  });
+}
+
 //Exportar acciones
 
 module.exports = {
   pruebaUser,
   register,
+  login,
+  profile,
+  list,
+  update,
+  upload
 };
