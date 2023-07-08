@@ -2,6 +2,7 @@
 const bcrypt = require("bcrypt");
 const moongoosePagination = require("mongoose-pagination");
 const fs = require("fs");
+const path = require("path");
 
 //importar modelos
 const User = require("../models/user");
@@ -243,20 +244,22 @@ const update = (req, res) => {
     //Buscar y actualizar
 
     try {
-      let userUpdated = await User.findByIdAndUpdate(
-        userIdentity.id,
+      let userUpdated = await User.findByIdAndUpdate({
+        _id: userIdentity.id},
         userToUpdate,
         { new: true }
       );
 
       if (!userUpdated)
-        return res.status(400).json({ status: "error", message: "Error al actualizar" });
+        return res
+          .status(400)
+          .json({ status: "error", message: "Error al actualizar" });
 
       // Devolver respuesta
       return res.status(200).send({
         status: "sucess",
         message: "Metodo de actualizar usuario",
-        user: userUpdated
+        user: userUpdated,
       });
     } catch (error) {
       return res.status(500).send({
@@ -265,16 +268,15 @@ const update = (req, res) => {
       });
     }
   });
-}
+};
 
 const upload = (req, res) => {
-
   // Recoger el fichero de imagen y comprobar que existe
 
   if (!req.file) {
     return res.status(404).send({
       status: "error",
-      message: "Peticion no incluye imagen"
+      message: "Peticion no incluye imagen",
     });
   }
 
@@ -284,48 +286,80 @@ const upload = (req, res) => {
 
   // Sacar la extension del archivo
 
-  const imageSplit = image.split("\.");
+  const imageSplit = image.split(".");
   const extension = imageSplit[1];
-
 
   // Comprobar extension
 
-  if (extension != "png" && extension != "jpg" && extension != "jpeg" && extension != "gif") {
-
+  if (
+    extension != "png" &&
+    extension != "jpg" &&
+    extension != "jpeg" &&
+    extension != "gif"
+  ) {
     // Borrar archivos subido
     const filePath = req.file.path;
-    console.log(filePath)
+    console.log(filePath);
     const fileDeleted = fs.unlinkSync(filePath);
 
     //Devolcer respuesta negativa
     return res.status(400).send({
       status: "error",
-      message: "Extencion del fichero invalida"
+      message: "Extencion del fichero invalida",
     });
-
   }
 
-
-
   // Si es correcta, guardar imagen en bbdd
-  User.findByIdAndUpdate(req.user.id, { image: req.file.filename }, { new: true }, (error, userUpdated) => {
+  User.findByIdAndUpdate({
+    _id: req.user.id},
+    { image: req.file.filename },
+    { new: true },
+    (error, userUpdated) => {
+      if (error || !userUpdated) {
+        return res.status(500).send({
+          status: "error",
+          message: "Error en la SUBIDA del Avatar",
+        });
+      }
 
-    if (error || !userUpdated) {
-      return res.status(500).send({
-        status: "error",
-        message: "Error en la SUBIDA del Avatar"
-      })
+      //Devolver respuesta
+      return res.status(200).send({
+        status: "success",
+        user: userUpdated,
+        file: req.file,
+      });
+    }
+  );
+};
+
+const avatar = (req, res) => {
+
+  // Sacar el parametro de la url
+
+  const file = req.params.file;
+
+  // Montar el path real de la imagen
+
+  const filePath = "./uploads/avatars/" + file;
+
+  // Comprobar que existe
+
+  fs.stat(filePath, (error, exists) => {
+    if (!exists) {
+      return res.status(404).send({ 
+        status: "error", message: "No existe la imagen" 
+      });
     }
 
+    return res.sendFile(path.resolve(filePath));
+  })
 
-    //Devolver respuesta
-    return res.status(200).send({
-      status: "success",
-      user: userUpdated,
-      file: req.file
-    });
-  });
-}
+  // Devolver el file
+
+
+
+
+};
 
 //Exportar acciones
 
@@ -336,5 +370,6 @@ module.exports = {
   profile,
   list,
   update,
-  upload
+  upload,
+  avatar
 };
