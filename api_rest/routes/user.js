@@ -26,7 +26,8 @@ router.get("/profile/:id", check.auth, UserController.profile);
 router.get("/list/:page?", check.auth, UserController.list);
 router.put("/update", check.auth, UserController.update);
 router.post("/upload", [check.auth, uploads.single("file0")], UserController.upload);
-router.get("/avatar/:file", check.auth, UserController.avatar);
+router.get("/avatar/:file", UserController.avatar); //cambio
+router.get("/counters/:file", check.auth, UserController.counters);
 
 //Exporar Router
 

@@ -1,9 +1,12 @@
 // Importaciones Modulos
 const fs = require("fs");
 const path = require("path");
- 
+
 // Importaciones Modelos
 const Publication = require("../models/publication");
+
+// Importaciones Servicios
+const followService = require("../services/followService");
 
 
 
@@ -111,7 +114,7 @@ const user = (req, res) => {
   // Find, populate, ordenar, paginar
   Publication.find({ "user": userId })
     .sort("-created_at")
-    .populate('user', '-password -__v -role')
+    .populate('user', '-password -__v -role -email')
     .paginate(page, itemsPerPage, (error, publications, total) => {
 
       if (error || !publications || publications.length <= 0) {
@@ -227,17 +230,57 @@ const media = (req, res) => {
     // Devolver el file
     return res.sendFile(path.resolve(filePath));
   })
-  
+
 };
 
 
 // Listar publicaciones de un usuario (FEED)
 
-const feed = (req, res) => {
-  return res.status(200).send({
-    status: "access",
-    message: "Feed de publicaciones"
-  });
+const feed = async (req, res) => {
+
+  // Sacar la pagina actual
+  let page = 1;
+
+  if (req.params.page) {
+    page = req.params.page;
+  }
+
+  // Establecer numero de elementos por pagina
+  let itemsPerPage = 5;
+
+  // Sacar un array de identificadores de usuario que yo sigo como usuarios logueado
+  try {
+    const myFollows = await followService.followUserIds(req.user.id);
+    // Find a publicaciones in, ordenar, popular, paginar
+    const publications = Publication.find({ user: myFollows.following })
+      .populate("user", "-password -role -__v -email")
+      .sort("-created_at")
+      .paginate(page, itemsPerPage, (error, publications, total) => {
+
+        if (error || !publications) {
+          return res.status(500).send({
+            status: "error",
+            message: "No hay publicaciones para mostrar"
+          });
+        }
+
+      return res.status(200).send({
+        status: "access",
+        message: "Feed de publicaciones",
+        following: myFollows.following,
+        total,
+        page,
+        pages: Math.ceil(total/itemsPerPage),
+        publications
+      });
+    });
+  } catch (error) {
+    return res.status(500).send({
+      status: "error",
+      message: "No se ha listado las publicaciondes del feed"
+    });
+  }
+
 }
 
 //Exportar acciones

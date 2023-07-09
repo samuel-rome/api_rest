@@ -115,7 +115,7 @@ const following = (req, res) => {
   // Find a follow, popular datos de los usuario y paginar con mongoose paginate
 
   Follow.find({ user: userId })
-    .populate("user followed", "-password -role -__v")
+    .populate("user followed", "-password -role -__v -email")
     .paginate(page, itemsPerPage, async (error, follows, total) => {
 
       // Listado de usuarios de trinity, y soy Samuel
@@ -153,7 +153,7 @@ const followers = (req, res) => {
   const itemsPerPage = 5;
 
   Follow.find({ followed: userId })
-    .populate("user", "-password -role -__v")
+    .populate("user", "-password -role -__v -email")
     .paginate(page, itemsPerPage, async(error, follows, total) => {
 
       let followUserIds = await followService.followUserIds(req.user.id);

@@ -6,6 +6,9 @@ const path = require("path");
 
 //importar modelos
 const User = require("../models/user");
+const Follow = require("../models/follow");
+const Publication = require("../models/publication");
+
 
 // importar servicios
 
@@ -181,6 +184,7 @@ const list = (req, res) => {
   let itemsPerPage = 5;
 
   User.find()
+    .select("-password -email -role -__v")
     .sort("_id")
     .paginate(page, itemsPerPage, async (error, users, total) => {
       if (error || !users) {
@@ -249,22 +253,17 @@ const update = (req, res) => {
     if (userToUpdate.password) {
       let pwd = await bcrypt.hash(userToUpdate.password, 10);
       userToUpdate.password = pwd;
+    //añadido
+    }else{
+        delete userToUpdate.password;
     }
 
     //Buscar y actualizar
-
     try {
-      let userUpdated = await User.findByIdAndUpdate({
-        _id: userIdentity.id
-      },
-        userToUpdate,
-        { new: true }
-      );
+      let userUpdated = await User.findByIdAndUpdate({_id: userIdentity.id},userToUpdate,{new: true});
 
       if (!userUpdated)
-        return res
-          .status(400)
-          .json({ status: "error", message: "Error al actualizar" });
+        return res.status(400).json({ status: "error", message: "Error al actualizar" });
 
       // Devolver respuesta
       return res.status(200).send({
@@ -367,8 +366,38 @@ const avatar = (req, res) => {
     // Devolver el file
     return res.sendFile(path.resolve(filePath));
   })
-  
+
 };
+
+const counters = async (req, res) => {
+
+  let userId = req.user.id;
+
+  if (req.params.id) {
+    userId = req.params.id;
+  }
+
+  try {
+    const following = await Follow.count({ "user": userId });
+
+    const followed = await Follow.count({ "followed": userId });
+    
+    const publications = await Publication.count({ "user": userId });
+
+    return res.status(200).send({
+      userId,
+      following: following,
+      followed: followed,
+      publications: publications
+    });
+  } catch (error) {
+    return res.status(500).send({
+      status: "error",
+      message: "Error en los contadores",
+      error
+    });
+  }
+}
 
 //Exportar acciones
 
@@ -380,5 +409,7 @@ module.exports = {
   list,
   update,
   upload,
-  avatar
+  avatar,
+  counters
+  
 };
