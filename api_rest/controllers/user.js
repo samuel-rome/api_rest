@@ -10,6 +10,8 @@ const User = require("../models/user");
 // importar servicios
 
 const jwt = require("../services/jwt");
+const followService = require("../services/followService");
+const follow = require("../models/follow");
 
 //Acciones de prueba
 
@@ -145,7 +147,7 @@ const profile = (req, res) => {
 
   User.findById(id)
     .select({ password: 0, role: 0 })
-    .exec((error, userProfile) => {
+    .exec(async (error, userProfile) => {
       if (error || !userProfile) {
         return res.status(404).send({
           status: "error",
@@ -153,11 +155,15 @@ const profile = (req, res) => {
         });
       }
 
+      // Info de seguimiento
+      const followInfo = await followService.followThisUser(req.user.id, id);
+
       //Devolver el resultado
-      //Posteriormente: devolver la informacion de follows
       return res.status(200).send({
         status: "sucess",
         user: userProfile,
+        following: followInfo.following,
+        follower: followInfo.follower
       });
     });
 };
@@ -176,14 +182,16 @@ const list = (req, res) => {
 
   User.find()
     .sort("_id")
-    .paginate(page, itemsPerPage, (error, users, total) => {
+    .paginate(page, itemsPerPage, async (error, users, total) => {
       if (error || !users) {
         return res.status(400).send({
           status: "sucess",
           message: "No hay usuarios disponibles",
+          error
         });
       }
-
+      // Sacar un array de ids de los usuarios que me siguen y los que sigo como Samuel
+      let followUserIds = await followService.followUserIds(req.user.id);
       //devolver el resultado (posteriormente info follow)
       return res.status(200).send({
         status: "sucess",
@@ -192,6 +200,8 @@ const list = (req, res) => {
         itemsPerPage,
         total,
         pages: Math.ceil(total / itemsPerPage),
+        user_following: followUserIds.following,
+        user_follow_me: followUserIds.followers
       });
     });
 };
@@ -245,7 +255,8 @@ const update = (req, res) => {
 
     try {
       let userUpdated = await User.findByIdAndUpdate({
-        _id: userIdentity.id},
+        _id: userIdentity.id
+      },
         userToUpdate,
         { new: true }
       );
@@ -311,7 +322,8 @@ const upload = (req, res) => {
 
   // Si es correcta, guardar imagen en bbdd
   User.findByIdAndUpdate({
-    _id: req.user.id},
+    _id: req.user.id
+  },
     { image: req.file.filename },
     { new: true },
     (error, userUpdated) => {
@@ -346,19 +358,16 @@ const avatar = (req, res) => {
 
   fs.stat(filePath, (error, exists) => {
     if (!exists) {
-      return res.status(404).send({ 
-        status: "error", message: "No existe la imagen" 
+      return res.status(404).send({
+        status: "error",
+        message: "No existe la imagen"
       });
     }
 
+    // Devolver el file
     return res.sendFile(path.resolve(filePath));
   })
-
-  // Devolver el file
-
-
-
-
+  
 };
 
 //Exportar acciones

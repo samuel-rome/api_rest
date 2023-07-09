@@ -3,6 +3,14 @@
 const Follow = require("../models/follow");
 const User = require("../models/user");
 
+// Importar Servicios
+
+const followService = require("../services/followService");
+
+// Importar Dependencias
+
+const mongoosePaginate = require("mongoose-pagination");
+
 //Acciones de prueba
 
 const pruebaFollow = (req, res) => {
@@ -66,9 +74,9 @@ const unfollow = (req, res) => {
   Follow.find({
     "user": userId,
     "followed": followedId
-  }).remove ((error, followDeleted) => {
+  }).remove((error, followDeleted) => {
 
-    if(error || !followDeleted){
+    if (error || !followDeleted) {
       return res.status(500).send({
         status: "error",
         message: "No dejaste de seguir a nadie"
@@ -87,7 +95,80 @@ const unfollow = (req, res) => {
 
 // Accion listado de usuarios que cualquier usuario esta siguiendo
 
-// Accion listado de usuarios que me siguen
+const following = (req, res) => {
+
+  // Sacar el id del usaurio identificado
+  let userId = req.user.id;
+
+  // Comprobar si me llega el dia po parametro en url
+  if (req.params.id) userId = req.params.id;
+
+  // Comprobar si me llega la pagina, si no la pagina 1
+  let page = 1;
+
+  if (req.params.page) page = req.params.page;
+
+  // Usuarios por pagina quiero mostrar
+
+  const itemsPerPage = 5;
+
+  // Find a follow, popular datos de los usuario y paginar con mongoose paginate
+
+  Follow.find({ user: userId })
+    .populate("user followed", "-password -role -__v")
+    .paginate(page, itemsPerPage, async (error, follows, total) => {
+
+      // Listado de usuarios de trinity, y soy Samuel
+
+      // Sacar un array de ids de los usuarios que me siguen y los que sigo como Samuel
+      let followUserIds = await followService.followUserIds(req.user.id);
+
+      return res.status(200).send({
+        status: "success",
+        message: "Listado de usuarios que estoy siguiendo",
+        follows,
+        total,
+        pages: Math.ceil(total / itemsPerPage),
+        user_following: followUserIds.following,
+        user_follow_me: followUserIds.followers
+      });
+    })
+}
+
+// Accion listado de usuarios que me siguen a cualquier otro usuarios(mis seguiso / seguidores)
+const followers = (req, res) => {
+
+  // Sacar el id del usaurio identificado
+  let userId = req.user.id;
+
+  // Comprobar si me llega el dia po parametro en url
+  if (req.params.id) userId = req.params.id;
+
+  // Comprobar si me llega la pagina, si no la pagina 1
+  let page = 1;
+
+  if (req.params.page) page = req.params.page;
+
+  // Usuarios por pagina quiero mostrar
+  const itemsPerPage = 5;
+
+  Follow.find({ followed: userId })
+    .populate("user", "-password -role -__v")
+    .paginate(page, itemsPerPage, async(error, follows, total) => {
+
+      let followUserIds = await followService.followUserIds(req.user.id);
+
+      return res.status(200).send({
+        status: "success",
+        message: "Listado de usuarios que me siguen",
+        follows,
+        total,
+        pages: Math.ceil(total/itemsPerPage),
+        user_following: followUserIds.following,
+        user_follow_me: followUserIds.followers
+      });
+    })
+}
 
 
 //Exportar acciones
@@ -95,5 +176,7 @@ const unfollow = (req, res) => {
 module.exports = {
   pruebaFollow,
   save,
-  unfollow
+  unfollow,
+  following,
+  followers
 };
