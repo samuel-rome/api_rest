@@ -11,6 +11,7 @@ const followService = require("../services/followService");
 
 
 //Acciones de prueba
+
 const pruebaPublication = (req, res) => {
   return res.status(200).send({
     message: "Mensaje enviado desde: controllers/publication.js",
@@ -18,6 +19,7 @@ const pruebaPublication = (req, res) => {
 };
 
 // Guardar publicacion
+
 const save = (req, res) => {
 
   // Recoger datos del body
@@ -135,6 +137,7 @@ const user = (req, res) => {
 }
 
 // Subir ficheros
+
 const upload = (req, res) => {
 
   // Sacar publication id
