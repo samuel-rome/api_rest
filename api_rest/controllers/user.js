@@ -79,7 +79,7 @@ const register = (req, res) => {
 
       //devolver resultado
       return res.status(200).json({
-        status: "SUCCESS",
+        status: "success",
         message: "Usuario Registrado Correctamente",
         user: userStored,
       });
@@ -129,7 +129,7 @@ const login = (req, res) => {
       // devolcer datos del usuario
 
       return res.status(200).send({
-        status: "sucess",
+        status: "success",
         message: "te has identificado correctamente",
         user: {
           id: user._id,
@@ -163,7 +163,7 @@ const profile = (req, res) => {
 
       //Devolver el resultado
       return res.status(200).send({
-        status: "sucess",
+        status: "success",
         user: userProfile,
         following: followInfo.following,
         follower: followInfo.follower
@@ -189,7 +189,7 @@ const list = (req, res) => {
     .paginate(page, itemsPerPage, async (error, users, total) => {
       if (error || !users) {
         return res.status(400).send({
-          status: "sucess",
+          status: "success",
           message: "No hay usuarios disponibles",
           error
         });
@@ -198,7 +198,7 @@ const list = (req, res) => {
       let followUserIds = await followService.followUserIds(req.user.id);
       //devolver el resultado (posteriormente info follow)
       return res.status(200).send({
-        status: "sucess",
+        status: "success",
         users,
         page,
         itemsPerPage,
@@ -267,7 +267,7 @@ const update = (req, res) => {
 
       // Devolver respuesta
       return res.status(200).send({
-        status: "sucess",
+        status: "success",
         message: "Metodo de actualizar usuario",
         user: userUpdated,
       });
